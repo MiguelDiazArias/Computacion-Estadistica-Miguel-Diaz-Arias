@@ -1,0 +1,72 @@
+---
+title: "Indices de Moran para agronomia"
+author: "Miguel Diaz"
+date: '2022-04-11'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ape)
+```
+
+## Datos (área)
+
+```{r}
+library(readxl)
+XPABLO <- read_excel("C:/Users/usuario/Desktop/RCOMPUTACION/XPABLO.xlsx")
+View(XPABLO)
+```
+
+## Matriz de distacia
+
+```{r}
+dist_matrix <- as.matrix(dist(cbind(XPABLO$Long, XPABLO$Lat)))
+which.max(dist_matrix) 
+max(dist_matrix)  
+min(dist_matrix) 
+```
+
+## Inversa de la distancia
+
+```{r}
+dist_matrix_inv <- 1 / dist_matrix # Element wise
+diag(dist_matrix_inv) <- 0
+```
+
+## Indices de Moran para los datos de suelo de XPABLO
+```{r}
+MO<-Moran.I(XPABLO$MO, dist_matrix_inv)
+MO
+
+Ca<-Moran.I(XPABLO$Ca, dist_matrix_inv)
+Ca
+
+Mg<-Moran.I(XPABLO$Mg, dist_matrix_inv)
+Mg
+
+K<-Moran.I(XPABLO$K, dist_matrix_inv)
+K
+
+Na<-Moran.I(XPABLO$Na, dist_matrix_inv)
+Na
+
+CICE<-Moran.I(XPABLO$CICE, dist_matrix_inv)
+CICE
+
+CE<-Moran.I(XPABLO$CE, dist_matrix_inv)
+CE
+
+Fe<-Moran.I(XPABLO$Fe, dist_matrix_inv)
+Fe
+
+Cu<-Moran.I(XPABLO$Cu, dist_matrix_inv)
+Cu
+
+Zn<-Moran.I(XPABLO$Zn, dist_matrix_inv)
+Zn
+```
+
+
