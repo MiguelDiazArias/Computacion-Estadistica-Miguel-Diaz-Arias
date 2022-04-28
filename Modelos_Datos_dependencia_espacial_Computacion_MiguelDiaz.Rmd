@@ -1,0 +1,221 @@
+---
+title: "Modelos Computacion"
+author: "Miguel Diaz"
+date: '2022-04-25'
+output: pdf_document
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(spatialreg) 
+library(spdep)
+library(ape)
+library(sp)
+library(readxl)
+library(psych) 
+library(openxlsx)
+library(ggplot2)
+library(dplyr)
+```
+
+## Carga de datos
+
+```{r}
+PABLO <- read_excel("C:/Users/usuario/Desktop/RCOMPUTACION/XPABLO.xlsx")
+PABLO
+```
+
+
+## Modelo Lineal K en relacion al Na (1)
+
+
+```{r}
+model_1 <- lm(K ~ Na, data = PABLO) 
+summary(model_1)
+```
+
+$$Y_{K} = 0.156 + 0.374X_{Na}$$
+
+```{r}
+ggplot(PABLO, aes(y = K, x = Na)) +
+  geom_point()+
+  geom_smooth(method='lm', se = F)
+```
+
+## Filtrado Na > 0.5
+
+```{r}
+PABLO2 <- PABLO |>
+  filter(Na <= 0.5)
+PABLO2
+```
+
+```{r}
+model_2 <- lm(K ~ Na, data = PABLO2) 
+summary(model_2)
+```
+$$Y_{K} = 0.149 + 0.403X_{Na}$$
+```{r}
+ggplot(PABLO2, aes(y = K, x = Na)) +
+  geom_point()+
+  geom_smooth(method='lm', se = F)
+```
+
+## Residuales con y sin valor absoluto
+
+```{r}
+res_2 <- model_2$residuals
+hist(res_2)
+
+res_2abs <- abs(res_2)
+hist(res_2abs)
+```
+
+## Valor absoluto para los residuales del modelo
+
+```{r}
+ggplot(PABLO2, aes(Long, Lat))+
+  geom_point(size = abs(res_2))
+```
+
+```{r}
+groups_col <- cut(res_2, breaks = 5)
+ggplot(PABLO2, aes(Long, Lat, color = groups_col))+
+  geom_point(size = 5)
+```
+
+```{r}
+groups_col <- cut(res_2abs, breaks = 5)
+ggplot(PABLO2, aes(Long, Lat, color = groups_col))+
+  geom_point(size = 5)
+```
+
+## Indice de Moran para residuales del modelo lineal
+
+```{r}
+dist_matr <- as.matrix(dist(cbind(x = PABLO2$Long, y = PABLO2$Lat)))
+dist_matr_inv<- 1/dist_matr
+diag(dist_matr_inv) <- 0
+Moran.I(res_2, dist_matr_inv) 
+shapiro.test(res_2)
+
+```
+
+## Modelo de regresión multiple (2)
+```{r}
+model_3 <- lm(K ~ Na + Mg, data = PABLO)
+summary(model_3)
+```
+
+$$Y_{K} = 0.088 + 0.068X_{Na} + 0.077Z_{Mg}$$
+
+```{r}
+res_3 <- model_3$residuals
+```
+
+## Indice de Moran para el modelo de regresion multiple
+
+
+```{r}
+dist_matr2 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv2<- 1/dist_matr2
+diag(dist_matr_inv2) <- 0
+Moran.I(res_3, dist_matr_inv2)
+shapiro.test(res_3)
+
+```
+
+
+## Primer Modelo con ajustes para datos georreferenciados (3)
+```{r}
+model_4 <- lm(K ~ Na + Long + Lat , data = PABLO) 
+summary(model_4)
+res_4 <- model_4$residuals
+dist_matr3 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv3<- 1/dist_matr3
+diag(dist_matr_inv3) <- 0
+Moran.I(res_4, dist_matr_inv3) 
+shapiro.test(res_4)
+```
+## Segundo Modelo con ajustes para datos georreferenciados (4)
+```{r}
+model_5 <- lm(K ~ Na + I(Long**2) + I(Lat**2), data = PABLO) 
+summary(model_5)
+res_5 <- model_5$residuals
+dist_matr4 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv4<- 1/dist_matr4
+diag(dist_matr_inv4) <- 0
+Moran.I(res_5, dist_matr_inv4) 
+shapiro.test(res_5)
+```
+## Tercer Modelo con ajustes para datos georreferenciados (5)
+```{r}
+model_6 <- lm(K ~ Na + Long + Lat + I(Long**2) + I(Lat**2), data = PABLO) 
+summary(model_6)
+res_6 <- model_6$residuals
+dist_matr5 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv5<- 1/dist_matr5
+diag(dist_matr_inv5) <- 0
+Moran.I(res_6, dist_matr_inv5) 
+shapiro.test(res_6)
+```
+
+
+## Cuarto Modelo con ajustes para datos georreferenciados (6)
+
+```{r}
+model_7 <- lm(K ~ Na + I(Long**2) + I(Lat**2) + I(Na**2)+ Long + Lat , data = PABLO) 
+summary(model_7)
+res_7 <- model_7$residuals
+dist_matr6 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv6<- 1/dist_matr6
+diag(dist_matr_inv6) <- 0
+Moran.I(res_7, dist_matr_inv6) 
+shapiro.test(res_7)
+```
+
+
+## Modelos de regresión espacial
+
+```{r}
+xy = as.matrix(PABLO[,c(2,3)])
+contnb <- dnearneigh(coordinates(xy),0,380000,longlat = F)
+dlist <- nbdists(contnb, xy)
+dlist <- lapply(dlist, function(x) 1/x)         
+Wve <- nb2listw(contnb,glist=dlist,style = "W")
+```
+
+## Modelo autoregresivo puro (7)
+
+```{r}
+model_auto <- spautolm(K ~ 1,data = PABLO,listw=Wve)
+summary(model_auto)
+res_8 <- model_auto$fit$residuals
+dist_matr7 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv7<- 1/dist_matr7
+diag(dist_matr_inv7) <- 0
+Moran.I(res_8, dist_matr_inv7) 
+shapiro.test(res_8)
+Moran.I(res_8, dist_matr_inv7)
+```
+
+$$Y_{K} = \alpha_0 + \lambda W Y_{K} + u\\
+u = \rho W u + \epsilon$$
+
+**Si $\rho$ = 0, u = $\epsilon$**
+
+$$Y_{K} = \alpha_0 + \lambda W Y_{K} + \epsilon$$
+## Ultimo intento con regresion multiple (8)
+```{r}
+model_9 <- lm(K ~ Na + Mg + CICE + Fe, data = PABLO)
+summary(model_9)
+res_9 <- model_9$residuals
+dist_matr8 <- as.matrix(dist(cbind(x = PABLO$Long, y = PABLO$Lat)))
+dist_matr_inv8<- 1/dist_matr8
+diag(dist_matr_inv8) <- 0
+shapiro.test(res_9)
+
+Moran.I(res_9, dist_matr_inv8)
+```
+
