@@ -1,0 +1,109 @@
+---
+title: "Asignacion clase 22"
+author: "Miguel Diaz"
+date: '2022-06-05'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+install.packages('faux')
+install.packages('lmtest')
+```
+
+```{r}
+library(faux)
+
+set.seed(1014306760)
+dfa <- abs(rnorm_multi(n = 1000,
+            mu = c(67, 30, 30, 320),
+            sd = c(2, 3, 5, 10),
+            varnames = c('Edad', 'dap', 'rto', 'clolA'),
+            r = c(0.4, 0.6, 0.5, 0.6, 0.7, 0.8)))
+
+dfa$hibrido <- abs(round(runif(n = 1000, min = 0,max = 1.2)))
+
+w <- 0.5 * dfa$clolA - 0.01 * dfa$dap - 0.6 * dfa$rto - 0.02 * dfa$Edad
+
+dfa$abortos <- ifelse(w > 140, '1', '0') #1 es si aborto, 2 es no aborto
+dfa$abortosn <- as.numeric(dfa$abortos)
+dfa$abortosn
+
+pr <- 1/(1+exp(-w)) 
+
+data <- data.frame(dfa$Edad,
+                   dfa$dap,
+                   dfa$hibrido,
+                   dfa$rto,
+                   dfa$clolA,
+                   dfa$abortos)
+data
+```
+PASO 1: Analisis univariado
+```{r}
+univariable_edad <- glm(dfa$abortosn ~ dfa$Edad, family = binomial, data = data)
+summary(univariable_edad)
+```
+
+```{r}
+univariable_dap <- glm(dfa$abortosn ~ dfa$dap, family = binomial, data = data)
+summary(univariable_dap)
+```
+
+```{r}
+univariable_h <- glm(dfa$abortosn ~ dfa$hibrido, family = binomial, data = data)
+summary(univariable_h) #No relacionada
+```
+
+```{r}
+univariable_rto <- glm(dfa$abortosn ~ dfa$rto, family = binomial, data = data)
+summary(univariable_rto)
+```
+
+```{r}
+univariable_cloA <- glm(dfa$abortosn ~ dfa$clolA, family = binomial, data = data)
+summary(univariable_cloA)
+```
+
+PASO 2: Comparaciones de modelos multivariados
+
+```{r, warning = FALSE, message=FALSE}
+model1 <- glm(dfa$abortosn ~ dfa$Edad + dfa$dap + dfa$hibrido + dfa$rto + dfa$clolA, family = binomial, data = data)
+summary(model1)
+#Ninguna variable se esta quedando
+```
+
+```{r, warning = FALSE, message=FALSE}
+model2 <- glm(dfa$abortosn ~ dfa$Edad + dfa$dap + dfa$rto + dfa$clolA, family = binomial, data = data) # Se elimina hibrido pq su p value es >0.05
+summary(model2)
+#Ninguna variable se esta quedando
+#El modelo no sirve?
+```
+
+```{r, warning = FALSE, message=FALSE}
+delta.coef <- abs((coef(model2)-coef(model1)[-c(4)])/coef(model1)[-c(4)])
+round(delta.coef, 6)
+#no hay cambio superior al 20%, entonces hibrido queda por fuera
+```
+```{r}
+library(lmtest)
+
+lrtest(model2, model1)
+```
+
+```{r}
+anova(model2, model1, test = 'Chisq')
+#Ambos modelos son iguales, teoricamente se podria quedar con el modelo mas corto
+```
+PASO 3: Suposicion de linealidad
+
+```{r}
+par(mfrow = c(2,2))
+scatter.smooth(dfa$Edad, log(pr/(1-pr)), cex = 0.5) 
+scatter.smooth(dfa$dap, log(pr/(1-pr)), cex = 0.5)
+scatter.smooth(dfa$clolA, log(pr/(1-pr)), cex = 0.5)
+scatter.smooth(dfa$rto, log(pr/(1-pr)), cex = 0.5)
+##Ninguna variable tiene relacion lineal con los abortos
+```
