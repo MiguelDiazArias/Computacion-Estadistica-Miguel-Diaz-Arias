@@ -1,0 +1,157 @@
+---
+title: "Parcial2Computacion"
+author: "Miguel Diaz"
+date: '2022-06-09'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Asignación
+
+* Correr el mismo código de clase, para Chroma y Hue
+
+* Caracterizar los Cluster 
+
+* Utilizar algún gráfico que muestre el número de cluster 
+
+* Pasar de coordenadas Lab a RGB (Investigar) y hacer los cluster con las coordanadas RGB
+
+* Existe alguna relación del Chroma y Hue para coordenadas RGB, si es cierto, entonces realiza los cluster con RGB
+
+* Pueden colocar otro tipo de coordenadas (ej. HLS, HVS)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(plotly)
+library(factoextra)
+library(dplyr)
+library(psych)
+```
+
+```{r}
+dfcie <- read_excel("C:\\Users\\usuario\\Desktop\\RCOMPUTACION\\Clases r\\Cielab_tueste_cafe+cyh.xlsx")
+```
+
+```{r}
+C <- sqrt(dfcie$a^2+dfcie$b^2)
+h <- atan(dfcie$b/dfcie$a)
+Cyh <- matrix(c(C,h),
+              ncol=2)
+Cyh
+#Haciendo una matriz Chroma y hue en R, sin embargo, modifique el excel para tenerlos en el doc, por un error que se me presentaba mas adelante
+```
+
+```{r}
+## Número óptimo de clusters
+M = Cyh
+Ms = scale(M)
+fviz_nbclust(Ms,
+             FUNcluster = kmeans,
+             method = 'gap_stat',
+             diss = get_dist(Ms,
+                             'euclidean'))
+```
+
+```{r}
+## Número óptimo de clusters
+M = dfcie[ ,-1]
+M2 = M [ ,-1]
+M3 = M2 [ ,-1]
+M4 = M3 [ ,-1]
+Ms = scale(M4)
+fviz_nbclust(Ms,
+             FUNcluster = kmeans,
+             method = 'gap_stat',
+             diss = get_dist(Ms,
+                             'euclidean'))
+```
+
+```{r}
+clus1 = kmeans(Ms, 3)
+M4$cluster <- clus1$cluster
+M4 |>
+  group_by(cluster) |>
+  summarise(media_C = mean(C),
+            media_h = mean(h),
+            desv_C = sd(C),
+            desv_h = sd(h),
+            coeV_C = 100 * desv_C/media_C,
+            coeV_h = 100 *desv_h/media_h,)
+
+```
+
+```{r}
+df_scale <- scale(M4)
+d <- dist(df_scale, method = "euclidean") 
+fit <- hclust(d, method="ward.D2")
+plot(fit)
+groups <- cutree(fit, k=3)  
+rect.hclust(fit, k=3, border="red")
+```
+
+```{r}
+tapply(M4$C, groups, mean)
+tapply(M4$h, groups, mean)
+```
+
+```{r}
+#PASAR A RGB
+dfcie1 <- dfcie [ ,-4]
+dfcie2 <- dfcie1 [ ,-4]
+dfcie3 <- dfcie2 [ ,-4]
+dfcie3
+```
+
+```{r}
+#PASAR A RGB
+library(farver)
+dfrgb<- convert_colour(dfcie3,'lab','rgb')
+dfrgb
+```
+
+```{r}
+## Cluster para RGB
+Msrgb = scale(dfrgb)
+fviz_nbclust(Msrgb,
+             FUNcluster = kmeans,
+             method = 'gap_stat',
+             diss = get_dist(Msrgb,
+                             'euclidean'))
+```
+
+```{r}
+#Hay 3 cluster para RGB tambien
+clus1 = kmeans(Msrgb, 3)
+dfrgb$cluster <- clus1$cluster
+dfrgb |>
+  group_by(cluster) |>
+  summarise(media_r = mean(r),
+            media_g = mean(g),
+            media_b = mean(b),
+            desv_r = sd(r),
+            desv_g = sd(g),
+            desv_b = sd(b),
+            coeV_r = 100 * desv_r/media_r,
+            coeV_g = 100 *desv_g/media_g,
+            coeV_b = 100 *desv_b/media_b)
+```
+
+```{r}
+df_scale1 <- scale(dfrgb)
+d <- dist(df_scale1, method = "euclidean") 
+fit <- hclust(d, method="ward.D2")
+plot(fit)
+groups <- cutree(fit, k=3)  
+rect.hclust(fit, k=3, border="red")
+```
+
+
+```{r}
+tapply(dfrgb$r, groups, mean)
+tapply(dfrgb$g, groups, mean)
+tapply(dfrgb$b, groups, mean)
+```
