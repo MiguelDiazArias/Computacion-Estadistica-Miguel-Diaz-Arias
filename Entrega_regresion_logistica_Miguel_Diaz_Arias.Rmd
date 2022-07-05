@@ -1,0 +1,157 @@
+---
+title: "Entrega regresion logistica"
+author: "Miguel Diaz"
+date: '2022-07-05'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#DATOS NUEVOS (DATOS DE LA ENTREGA)
+library(faux)
+
+set.seed(1014306760)
+dfa <- rnorm_multi(n = 1000,
+            mu = c(67, 30, 80, 320),
+            sd = c(2, 3, 5, 10),
+            varnames = c('Edad', 'dap', 'rto', 'clolA'),
+            r = c(0.4, 0.6, 0.5, 0.6, 0.7, 0.8))
+
+dfa$hibrido <- round(runif(n = 1000, min = 0,max = 1.2))
+
+w <- -0.1 * dfa$clolA + 0.5 * dfa$dap - 0.6 * dfa$rto - 0.02 * dfa$Edad
+pr <- 1/(1+exp(-w))
+
+dfa$abortos <- ifelse(w > -65.5, '1', '0') #1 es si aborto, 2 es no aborto
+dfa$abortosn <- as.numeric(dfa$abortos)
+dfa$abortosn
+
+data <- data.frame(dfa$Edad,
+                   dfa$dap,
+                   dfa$hibrido,
+                   dfa$rto,
+                   dfa$clolA,
+                   dfa$abortos)
+data
+```
+
+```{r}
+univariable_edad <- glm(dfa$abortosn ~ dfa$Edad, family = binomial, data = data)
+summary(univariable_edad) #la edad si estaria relacionada
+```
+
+```{r}
+univariable_dap <- glm(dfa$abortosn ~ dfa$dap, family = binomial, data = data)
+summary(univariable_dap) #el dap si estaria relacionado
+```
+
+```{r}
+univariable_h <- glm(dfa$abortosn ~ dfa$hibrido, family = binomial, data = data)
+summary(univariable_h) #El hibrido no estaria relacionado
+```
+
+```{r}
+univariable_rto <- glm(dfa$abortosn ~ dfa$rto, family = binomial, data = data)
+summary(univariable_rto) #el rto si estaria relacionado
+```
+
+```{r}
+univariable_cloA <- glm(dfa$abortosn ~ dfa$clolA, family = binomial, data = data)
+summary(univariable_cloA) #la clorofila a si estaria relacionada
+```
+
+PASO 2: Comparaciones de modelos multivariados
+
+```{r, warning = FALSE, message=FALSE}
+model1 <- glm(dfa$abortosn ~ dfa$Edad + dfa$dap + dfa$hibrido + dfa$rto + dfa$clolA, family = binomial, data = data)
+summary(model1)
+#El modelo no esta siendo bueno, no hay nada significativo
+```
+
+```{r, warning = FALSE, message=FALSE}
+model2 <- glm(dfa$abortosn ~ dfa$Edad+dfa$dap + dfa$rto + dfa$clolA, family = binomial, data = data) # Se elimina hibrido pq su p value es >0.05, tambien se elimino la edad y de esta forma el modelo dio significancia en todos sus componentes restantes
+summary(model2)
+
+```
+
+```{r, warning = FALSE, message=FALSE}
+delta.coef <- abs((coef(model2)-coef(model1)[-c(1,2)])/coef(model1)[-c(1,2)])
+round(delta.coef, 6)
+```
+```{r}
+library(lmtest)
+
+lrtest(model2, model1)
+```
+
+```{r}
+anova(model2, model1, test = 'Chisq')
+#Ambos modelos son iguales, teoricamente se podria quedar con el modelo mas corto, en este caso el modelo 2, en donde se quita el hibrido
+```
+
+```{r}
+par(mfrow = c(2,3))
+scatter.smooth(dfa$Edad, log(pr/(1-pr)), cex = 0.5) 
+scatter.smooth(dfa$dap, log(pr/(1-pr)), cex = 0.5)
+scatter.smooth(dfa$clolA, log(pr/(1-pr)), cex = 0.5)
+scatter.smooth(dfa$rto, log(pr/(1-pr)), cex = 0.5)
+scatter.smooth(dfa$Edad, log(pr/(1-pr)), cex = 0.5)
+##el rendimiento y la clorofila a son las mas relacionadas linealmente con los abortos
+```
+```{r}
+model_inter2=glm(dfa$abortosn ~ dfa$Edad+dfa$dap + dfa$clolA +dfa$rto +dfa$dap:dfa$rto, family = 'binomial', data = data)
+summary(model_inter2)
+lrtest(model2,model_inter2)
+anova(model2, model_inter2, test = 'Chisq')
+# No vale la pena en este caso usar el modelo con interacccion, se toma el modelo mas sencillo (model2)
+```
+
+```{r}
+#Extrayendo las predicciones de abortos
+library(dplyr)
+DAP2 <- dfa$dap
+RTO2 <- dfa$rto
+rta= model2$fitted.values
+prop_ab <- rta*100
+cat_rto <- cut(DAP2,breaks = 4)
+cat_dap <- cut(RTO2,breaks=4)
+data_2 <- data.frame(cat_rto, cat_dap, prop_ab)
+
+tips2 <- data_2 %>% 
+  group_by(cat_dap, cat_rto) %>% 
+  summarise(media_prop_abortos = mean(prop_ab))
+
+# Graficando las dos variables
+library(ggplot2)
+tips2$tip_groups
+
+ggplot(data = tips2) +
+  aes(x = cat_rto, y = media_prop_abortos, color = cat_dap) +
+  geom_line(aes(group = cat_dap))
+#la probabilidad de aborto es 100% si la planta tiene un dap menor a 72.6, luego la probabilidad de aborto puede llegar a 100% si el dap esta entre 72.6 y 80.1 y al rendimiento es mayor, la probabilidad de aborto es 0 si el dap es mayor a 87.5 independiemente del rendimiento
+```
+
+
+```{r}
+library(ResourceSelection)
+cut_prob <- ifelse(fitted(model2) > 0.5, 1, 0)
+table(model2$y, cut_prob)
+
+hoslem.test(model2$y, fitted(model2))
+#p valor mayor a 0.05, no hay dif significativa entre valores observados y predichos
+```
+
+
+```{r}
+Predprob<-predict(model2,type="response")
+plot(Predprob,jitter(as.numeric(dfa$abortosn),0.5), cex=0.5, ylab="Abortos")
+abline(v = 0.5, col = 'red')
+#En este caso la probabilidad de abortos y no abortos predicha y observada son pracitamente identicas
+```
+
